@@ -1,6 +1,6 @@
 # FIT — Shirt selection
 
-Laravel 12 + React 19, with Vite. Public selection form and session-authenticated admin dashboard. PHP 8.2+ (SQLite extension), Composer 2, and Node.js 22+ are required.
+Laravel 12 + React 19, with Vite. Public selection form and public selections dashboard. PHP 8.2+ (SQLite extension), Composer 2, and Node.js 22+ are required.
 
 ## Local setup
 
@@ -11,14 +11,13 @@ cp .env.example .env
 php artisan key:generate
 php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
 php artisan migrate
-php artisan admin:create
 npm run build
 php artisan serve
 ```
 
-Open http://127.0.0.1:8000. Sign in at `/login`; submissions are at `/admin`. On Windows PowerShell use `Copy-Item .env.example .env` and `npm.cmd` if script execution is disabled. For frontend development run `npm run dev` in a second terminal. Laravel serves the frontend and backend from the same origin.
+Open http://127.0.0.1:8000. The selection form is at `/`; the public dashboard is at `/admin`. On Windows PowerShell use `Copy-Item .env.example .env` and `npm.cmd` if script execution is disabled. For frontend development run `npm run dev` in a second terminal. Laravel serves the frontend and backend from the same origin.
 
-This workspace already has dependencies installed, an app key, a migrated SQLite database, and built frontend assets. Create administrators with `php artisan admin:create`; no default credentials are included in source code. Sign in with either username or email. Email is optional when creating a username account.
+This workspace already has dependencies installed, an app key, a migrated SQLite database, and built frontend assets. The dashboard is intentionally public for a small trusted group; anyone with the URL can view, edit, and export submissions.
 
 For Laragon, point the virtual host document root to `C:/laragon/www/fit/public` and set `APP_URL` to the local hostname. Never serve the repository root.
 
@@ -40,15 +39,14 @@ Edit `config/shirts.php`. Each design has a name, subtitle, front image, and a `
 
 ## Behavior
 
-- Public users do not log in. Details and a private random entry key are saved in browser localStorage, including drafts. Submit selection creates the entry; Save changes and Edit my entry update that same entry. Admin login remains required.
+- Public users do not log in to submit. Details and a private random entry key are saved in browser localStorage, including drafts. Submit selection creates the entry; Save changes and Edit my entry update that same entry. The selections dashboard at `/admin` is public (no login).
 - Editing access is tied to the browser and site origin. Clearing site data or switching browsers removes access to the previous entry. Entries submitted before browser storage was introduced cannot be automatically linked.
 
 - All seven sizes, full name, and Design 2 (required) are validated on the client and server. Design 1 remains optional.
-- Each submission records the selected designs and a UTC timestamp. Admin dates display in the browser’s local timezone; CSV dates are UTC.
+- Each submission records the selected designs and a UTC timestamp. Dashboard dates display in the browser’s local timezone; CSV dates are UTC.
 - The submit button locks immediately. A UUID request key and database unique constraint prevent duplicates from repeated clicks and retries, including concurrent requests. Reusing a key with changed data returns 409. Deliberately starting another selection is allowed; names are not unique identifiers.
-- All user accounts are administrators; there is no public registration. Create accounts only through the interactive `admin:create` command, which asks for a username, optional email, and a hidden password of at least 12 characters. Usernames support letters, numbers, dots, underscores, and hyphens. Existing email-only accounts remain supported.
-- Session authentication, CSRF protection, login throttling, and submission throttling are enabled.
-- Admin filters combine size and design. Both-design submissions match either design filter. Totals describe the filtered results, with separate counts for each design. Results paginate in groups of 20.
+- CSRF protection and submission throttling are enabled.
+- Dashboard filters combine size and design. Both-design submissions match either design filter. Totals describe the filtered results, with separate counts for each design. Results paginate in groups of 20.
 - CSV exports include all matching rows across pages and escape spreadsheet-formula prefixes in names.
 
 ## Verification
@@ -58,8 +56,8 @@ php artisan test
 npm run build
 ```
 
-Feature tests use an isolated in-memory SQLite database. They cover required/invalid fields, all sizes, required Design 2, optional Design 1, idempotent retries, conflicting retries, authentication, filters, totals, pagination, and CSV escaping.
+Feature tests use an isolated in-memory SQLite database. They cover required/invalid fields, all sizes, required Design 2, optional Design 1, idempotent retries, conflicting retries, public dashboard access, filters, totals, pagination, and CSV escaping.
 
 ## Production
 
-Install PHP dependencies with `composer install --no-dev --optimize-autoloader`, run `npm ci && npm run build`, configure the environment, generate an app key once, and run `php artisan migrate --force` followed by `php artisan optimize`. Serve only `public/` through an HTTPS-capable PHP web server. Ensure `storage/`, `bootstrap/cache/`, and the SQLite database directory (if used) are writable. Back up the database and keep `.env` private. Create an administrator on the deployment using `php artisan admin:create`.
+Install PHP dependencies with `composer install --no-dev --optimize-autoloader`, run `npm ci && npm run build`, configure the environment, generate an app key once, and run `php artisan migrate --force` followed by `php artisan optimize`. Serve only `public/` through an HTTPS-capable PHP web server. Ensure `storage/`, `bootstrap/cache/`, and the SQLite database directory (if used) are writable. Back up the database and keep `.env` private. The dashboard at `/admin` is public—share the URL only with trusted colleagues.

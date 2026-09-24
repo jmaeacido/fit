@@ -2,9 +2,7 @@
 namespace App\Http\Controllers;
 use App\Models\Submission;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 class ShirtController extends Controller
 {
     public function page() { return view('app', ['settings' => config('shirts')]); }
@@ -42,22 +40,6 @@ class ShirtController extends Controller
     public function update(Request $request, Submission $submission) {
         $submission->update($this->selectionData($request, false));
         return response()->json(['id' => $submission->id]);
-    }
-    public function login(Request $request) {
-        // Accept the previous email payload as well as the unified login field.
-        $request->merge(['login' => $request->input('login', $request->input('email'))]);
-        $data = $request->validate(['login' => ['required', 'string', 'max:255'], 'password' => ['required', 'string']]);
-        $field = str_contains($data['login'], '@') ? 'email' : 'username';
-        $credentials = [$field => $data['login'], 'password' => $data['password']];
-        if (!Auth::attempt($credentials)) throw ValidationException::withMessages(['login' => 'The username, email, or password is incorrect.']);
-        $request->session()->regenerate();
-        return response()->json(['ok' => true]);
-    }
-    public function logout(Request $request) {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-        return response()->json(['ok' => true]);
     }
     private function filtered(Request $request) {
         $filters = $request->validate(['size' => ['nullable', Rule::in(config('shirts.sizes'))], 'design' => ['nullable', Rule::in(['1', '2'])]]);

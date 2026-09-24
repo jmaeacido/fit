@@ -21,6 +21,6 @@ php8.3 artisan migrate --force
 php8.3 artisan optimize
 ```
 
-Keep `storage`, `bootstrap/cache`, and the database writable by `www-data`. The environment file must remain private. Verify `/up`, `/`, `/login`, and the built assets over HTTPS after deployment.
+Keep `storage`, `bootstrap/cache`, and the database writable by `www-data`. The environment file must remain private. Verify `/up`, `/`, `/admin`, and the built assets over HTTPS after deployment.
 
-Create an administrator interactively with `php8.3 artisan admin:create`. Do not put passwords in commands, documentation, or source control.
+The selections dashboard at `/admin` is public (view, edit, and CSV export without login). Share that URL only with trusted colleagues.
