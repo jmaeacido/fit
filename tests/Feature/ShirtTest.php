@@ -12,7 +12,7 @@ class ShirtTest extends TestCase
     public function test_public_form_loads(): void { $this->withoutVite()->get('/')->assertOk(); }
     public function test_required_and_allowed_values(): void {
         $this->postJson('/submissions', [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs', 'request_key']);
-        foreach ([['display_name' => '  '], ['display_name' => str_repeat('a', 151)], ['display_number' => '7'], ['display_number' => '007'], ['display_number' => 'ab'], ['display_number' => '-1'], ['display_number' => 7], ['name' => '  '], ['size' => '4XL'], ['designs' => []], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) $this->postJson('/submissions', $this->payload($invalid))->assertUnprocessable();
+        foreach ([['display_name' => '  '], ['display_name' => str_repeat('a', 151)], ['display_number' => '7'], ['display_number' => '007'], ['display_number' => 'ab'], ['display_number' => '-1'], ['display_number' => 7], ['name' => '  '], ['size' => '4XL'], ['designs' => []], ['designs' => ['1']], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) $this->postJson('/submissions', $this->payload($invalid))->assertUnprocessable();
         $this->assertDatabaseCount('submissions', 0);
     }
     public function test_submissions_and_retries_are_idempotent(): void {
@@ -27,9 +27,15 @@ class ShirtTest extends TestCase
         $this->assertSame(['1', '2'], Submission::first()->designs);
         $this->assertNotNull(Submission::first()->created_at);
     }
-    public function test_all_sizes_and_single_design_are_accepted(): void {
+    public function test_all_sizes_and_required_design_two_are_accepted(): void {
         foreach (config('shirts.sizes') as $size) $this->postJson('/submissions', $this->payload(['size' => $size, 'designs' => ['2']]))->assertCreated();
         $this->assertDatabaseCount('submissions', 7);
+    }
+    public function test_design_two_is_required(): void {
+        $this->postJson('/submissions', $this->payload(['designs' => ['1']]))->assertUnprocessable()->assertJsonValidationErrors('designs');
+        $this->postJson('/submissions', $this->payload(['designs' => ['2']]))->assertCreated();
+        $this->postJson('/submissions', $this->payload(['designs' => ['1', '2']]))->assertCreated();
+        $this->assertDatabaseCount('submissions', 2);
     }
     public function test_browser_entry_can_be_created_and_edited_without_login(): void {
         $payload = $this->payload();
@@ -84,7 +90,7 @@ class ShirtTest extends TestCase
         $record = Submission::create($this->payload());
         $this->actingAs(User::factory()->create());
         $this->postJson('/admin/submissions/'.$record->id, [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs']);
-        foreach ([['name' => ' '], ['display_name' => ' '], ['display_number' => '7'], ['size' => 'invalid'], ['designs' => []], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) {
+        foreach ([['name' => ' '], ['display_name' => ' '], ['display_number' => '7'], ['size' => 'invalid'], ['designs' => []], ['designs' => ['1']], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) {
             $this->postJson('/admin/submissions/'.$record->id, $this->payload($invalid))->assertUnprocessable();
         }
         $this->assertSame('07', $record->fresh()->display_number);

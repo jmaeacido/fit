@@ -43,7 +43,7 @@ Edit `config/shirts.php`. Each design has a name, subtitle, front image, and a `
 - Public users do not log in. Details and a private random entry key are saved in browser localStorage, including drafts. Submit selection creates the entry; Save changes and Edit my entry update that same entry. Admin login remains required.
 - Editing access is tied to the browser and site origin. Clearing site data or switching browsers removes access to the previous entry. Entries submitted before browser storage was introduced cannot be automatically linked.
 
-- All seven sizes, full name, and at least one of the two designs are validated on the client and server.
+- All seven sizes, full name, and Design 2 (required) are validated on the client and server. Design 1 remains optional.
 - Each submission records the selected designs and a UTC timestamp. Admin dates display in the browser’s local timezone; CSV dates are UTC.
 - The submit button locks immediately. A UUID request key and database unique constraint prevent duplicates from repeated clicks and retries, including concurrent requests. Reusing a key with changed data returns 409. Deliberately starting another selection is allowed; names are not unique identifiers.
 - All user accounts are administrators; there is no public registration. Create accounts only through the interactive `admin:create` command, which asks for a username, optional email, and a hidden password of at least 12 characters. Usernames support letters, numbers, dots, underscores, and hyphens. Existing email-only accounts remain supported.
@@ -58,7 +58,7 @@ php artisan test
 npm run build
 ```
 
-Feature tests use an isolated in-memory SQLite database. They cover required/invalid fields, all sizes, one/both designs, idempotent retries, conflicting retries, authentication, filters, totals, pagination, and CSV escaping.
+Feature tests use an isolated in-memory SQLite database. They cover required/invalid fields, all sizes, required Design 2, optional Design 1, idempotent retries, conflicting retries, authentication, filters, totals, pagination, and CSV escaping.
 
 ## Production
 

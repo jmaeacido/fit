@@ -22,7 +22,11 @@ class ShirtController extends Controller
             'display_name' => ['required', 'string', 'max:150'],
             'display_number' => ['required', 'string', 'regex:/^[0-9]{2}$/D'],
             'size' => ['required', Rule::in(config('shirts.sizes'))],
-            'designs' => ['required', 'array', 'min:1', 'max:2'],
+            'designs' => ['required', 'array', 'min:1', 'max:2', function ($attribute, $value, $fail) {
+                if (!is_array($value) || !in_array('2', $value, true)) {
+                    $fail('Design 2 must be selected.');
+                }
+            }],
             'designs.*' => ['required', 'string', 'distinct', Rule::in(['1', '2'])],
             ...($requireKey ? ['request_key' => ['required', 'uuid']] : []),
         ]);
