@@ -28,3 +28,5 @@ dialog{width:min(700px,94vw);max-width:94vw}
 
 .browser-note{font-size:12px;line-height:1.7;background:#eef2e7;padding:16px 20px;border-radius:8px;margin-bottom:24px}
 .success .primary{margin-top:20px}
+
+.edit-dialog{width:min(520px,94vw);text-align:left;max-height:90vh;overflow:auto}.edit-dialog .edit-fields{margin:0}.edit-dialog p{margin:9px 0 0}.edit-designs{display:flex;gap:20px;flex-wrap:wrap}.edit-designs label{display:flex;align-items:center;gap:8px}.edit-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:26px}.admin-notice{padding:14px 18px;border-radius:6px;background:#edf1e7;margin-bottom:20px}

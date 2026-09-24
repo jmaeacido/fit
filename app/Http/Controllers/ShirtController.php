@@ -16,7 +16,7 @@ class ShirtController extends Controller
         }
         return response()->json(['id' => $submission->id], $submission->wasRecentlyCreated ? 201 : 200);
     }
-    private function selectionData(Request $request): array {
+    private function selectionData(Request $request, bool $requireKey = true): array {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'display_name' => ['required', 'string', 'max:150'],
@@ -24,7 +24,7 @@ class ShirtController extends Controller
             'size' => ['required', Rule::in(config('shirts.sizes'))],
             'designs' => ['required', 'array', 'min:1', 'max:2'],
             'designs.*' => ['required', 'string', 'distinct', Rule::in(['1', '2'])],
-            'request_key' => ['required', 'uuid'],
+            ...($requireKey ? ['request_key' => ['required', 'uuid']] : []),
         ]);
         sort($data['designs']);
         return $data;
@@ -34,6 +34,10 @@ class ShirtController extends Controller
         // The unguessable browser key grants access to this entry; never expose it in listings.
         $submission = Submission::updateOrCreate(['request_key' => $data['request_key']], $data);
         return response()->json(['id' => $submission->id], $submission->wasRecentlyCreated ? 201 : 200);
+    }
+    public function update(Request $request, Submission $submission) {
+        $submission->update($this->selectionData($request, false));
+        return response()->json(['id' => $submission->id]);
     }
     public function login(Request $request) {
         // Accept the previous email payload as well as the unified login field.

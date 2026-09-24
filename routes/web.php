@@ -11,6 +11,7 @@ Route::post('/submissions', [ShirtController::class, 'store'])->middleware('thro
 Route::middleware('auth')->group(function () {
     Route::get('/admin', [ShirtController::class, 'page']);
     Route::get('/admin/submissions', [ShirtController::class, 'index']);
+    Route::post('/admin/submissions/{submission}', [ShirtController::class, 'update']);
     Route::get('/admin/export', [ShirtController::class, 'export']);
     Route::post('/logout', [ShirtController::class, 'logout']);
 });
