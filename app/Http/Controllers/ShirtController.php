@@ -2,10 +2,16 @@
 namespace App\Http\Controllers;
 use App\Models\Submission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 class ShirtController extends Controller
 {
-    public function page() { return view('app', ['settings' => config('shirts')]); }
+    public function page() {
+        return view('app', ['settings' => array_merge(config('shirts'), [
+            'authenticated' => Auth::check(),
+        ])]);
+    }
     public function store(Request $request) {
         $data = $this->selectionData($request);
         $submission = Submission::firstOrCreate(['request_key' => $data['request_key']], $data);
@@ -33,13 +39,28 @@ class ShirtController extends Controller
     }
     public function save(Request $request) {
         $data = $this->selectionData($request);
-        // The unguessable browser key grants access to this entry; never expose it in listings.
+        // The unguessable browser key grants access to this entry only; never expose it in listings.
         $submission = Submission::updateOrCreate(['request_key' => $data['request_key']], $data);
         return response()->json(['id' => $submission->id], $submission->wasRecentlyCreated ? 201 : 200);
     }
     public function update(Request $request, Submission $submission) {
         $submission->update($this->selectionData($request, false));
         return response()->json(['id' => $submission->id]);
+    }
+    public function login(Request $request) {
+        $request->merge(['login' => $request->input('login', $request->input('email'))]);
+        $data = $request->validate(['login' => ['required', 'string', 'max:255'], 'password' => ['required', 'string']]);
+        $field = str_contains($data['login'], '@') ? 'email' : 'username';
+        $credentials = [$field => $data['login'], 'password' => $data['password']];
+        if (!Auth::attempt($credentials)) throw ValidationException::withMessages(['login' => 'The username, email, or password is incorrect.']);
+        $request->session()->regenerate();
+        return response()->json(['ok' => true]);
+    }
+    public function logout(Request $request) {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return response()->json(['ok' => true]);
     }
     private function filtered(Request $request) {
         $filters = $request->validate(['size' => ['nullable', Rule::in(config('shirts.sizes'))], 'design' => ['nullable', Rule::in(['1', '2'])]]);
@@ -54,6 +75,7 @@ class ShirtController extends Controller
             'total' => (clone $query)->count(),
             'sizes' => (clone $query)->selectRaw('size, COUNT(*) as total')->groupBy('size')->pluck('total', 'size'),
             'designs' => collect(['1', '2'])->mapWithKeys(fn ($id) => [$id => (clone $query)->whereJsonContains('designs', $id)->count()]),
+            'authenticated' => Auth::check(),
         ]);
     }
     public function export(Request $request) {

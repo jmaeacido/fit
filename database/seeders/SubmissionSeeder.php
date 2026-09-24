@@ -10,6 +10,10 @@ class SubmissionSeeder extends Seeder
 {
     public function run(): void
     {
+        if (Submission::query()->exists()) {
+            return;
+        }
+
         $samples = [
             ['name' => 'Alex Morgan', 'display_name' => 'MORGAN', 'display_number' => '07', 'size' => 'M', 'designs' => ['1', '2']],
             ['name' => 'Jordan Lee', 'display_name' => 'LEE', 'display_number' => '12', 'size' => 'L', 'designs' => ['2']],

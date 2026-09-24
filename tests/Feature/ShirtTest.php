@@ -1,6 +1,7 @@
 <?php
 namespace Tests\Feature;
 use App\Models\Submission;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -47,7 +48,7 @@ class ShirtTest extends TestCase
         $this->assertDatabaseHas('submissions', ['id' => $id, 'display_number' => '00', 'display_name' => 'ALEX', 'size' => 'XL']);
         $this->assertSame(['2'], Submission::find($id)->designs);
     }
-    public function test_browser_keys_isolate_entries_and_are_not_exposed(): void {
+    public function test_users_can_only_edit_their_own_browser_entry(): void {
         $first = $this->payload();
         $id = $this->postJson('/submissions/save', $first)->assertCreated()->json('id');
         $this->postJson('/submissions/save', $this->payload(['name' => 'Another person', 'id' => $id]))->assertCreated();
@@ -59,20 +60,25 @@ class ShirtTest extends TestCase
         $this->assertStringNotContainsString($first['request_key'], $response->getContent());
         $this->assertStringNotContainsString('request_key', $response->getContent());
     }
-    public function test_dashboard_is_public(): void {
+    public function test_dashboard_is_public_but_editing_requires_admin(): void {
         $this->withoutVite()->get('/admin')->assertOk();
-        $this->get('/login')->assertRedirect('/admin');
-        $this->getJson('/admin/submissions')->assertOk();
+        $this->withoutVite()->get('/login')->assertOk();
+        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('authenticated', false);
         $this->getJson('/admin/export')->assertOk();
         $record = Submission::create($this->payload());
-        $this->postJson('/admin/submissions/'.$record->id, $this->payload(['name' => 'Public Edit']))->assertOk();
-        $this->assertSame('Public Edit', $record->fresh()->name);
+        $this->postJson('/admin/submissions/'.$record->id, $this->payload(['name' => 'Public Edit']))->assertUnauthorized();
+        $this->assertSame('Alex Morgan', $record->fresh()->name);
+        $this->actingAs(User::factory()->create());
+        $this->postJson('/admin/submissions/'.$record->id, $this->payload(['name' => 'Admin Edit']))->assertOk();
+        $this->assertSame('Admin Edit', $record->fresh()->name);
+        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('authenticated', true);
     }
     public function test_admin_can_edit_a_record_without_changing_its_identity(): void {
         $record = Submission::create($this->payload());
         $other = Submission::create($this->payload());
         $createdAt = $record->created_at;
         $key = $record->request_key;
+        $this->actingAs(User::factory()->create());
         $changed = ['name' => 'Updated Person', 'display_name' => 'UPDATED', 'display_number' => '00', 'size' => 'XL', 'designs' => ['2']];
         $this->postJson('/admin/submissions/'.$record->id, $changed + ['request_key' => (string) Str::uuid(), 'id' => $other->id, 'created_at' => '2000-01-01'])->assertOk()->assertExactJson(['id' => $record->id]);
         $record->refresh();
@@ -87,6 +93,7 @@ class ShirtTest extends TestCase
     }
     public function test_admin_edits_validate_fields_and_require_an_existing_record(): void {
         $record = Submission::create($this->payload());
+        $this->actingAs(User::factory()->create());
         $this->postJson('/admin/submissions/'.$record->id, [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs']);
         foreach ([['name' => ' '], ['display_name' => ' '], ['display_number' => '7'], ['size' => 'invalid'], ['designs' => []], ['designs' => ['1']], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) {
             $this->postJson('/admin/submissions/'.$record->id, $this->payload($invalid))->assertUnprocessable();
@@ -94,6 +101,24 @@ class ShirtTest extends TestCase
         $this->assertSame('07', $record->fresh()->display_number);
         $this->postJson('/admin/submissions/99999', $this->payload())->assertNotFound();
         $this->assertDatabaseCount('submissions', 1);
+    }
+    public function test_login_logout_and_invalid_password(): void {
+        $user = User::factory()->create();
+        $this->postJson('/login', ['email' => $user->email, 'password' => 'wrong'])->assertUnprocessable();
+        $this->postJson('/login', ['email' => $user->email, 'password' => 'password'])->assertOk();
+        $this->assertAuthenticatedAs($user);
+        $this->postJson('/logout')->assertOk();
+        $this->assertGuest();
+    }
+    public function test_unified_login_accepts_username_and_email(): void {
+        $user = User::factory()->create(['username' => 'testadmin']);
+        foreach ([$user->username, $user->email] as $login) {
+            $this->postJson('/login', ['login' => $login, 'password' => 'password'])->assertOk();
+            $this->assertAuthenticatedAs($user);
+            $this->postJson('/logout')->assertOk();
+        }
+        $this->postJson('/login', ['login' => 'testadmin', 'password' => 'incorrect'])->assertUnprocessable()->assertJsonValidationErrors('login');
+        $this->assertGuest();
     }
     public function test_filters_totals_and_csv(): void {
         Submission::create($this->payload());
