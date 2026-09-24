@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FIT">
+  <style>
+    .bg { fill: #253429; }
+    .shirt { fill: #f8f9f5; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #f8f9f5; }
+      .shirt { fill: #253429; }
+    }
+  </style>
+  <rect class="bg" width="32" height="32" rx="7"/>
+  <path class="shirt" d="M12.16 3.2c.64 1.28 1.92 2.24 3.84 2.24s3.2-.96 3.84-2.24l5.12 3.2 2.56 3.84-2.56 4.48-5.12-2.56.64 15.36H11.52l.64-15.36-5.12 2.56L4.48 10.24l2.56-3.84 5.12-3.2z"/>
+</svg>
