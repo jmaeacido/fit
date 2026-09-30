@@ -47,6 +47,17 @@ class ShirtTest extends TestCase
         $this->assertDatabaseCount('submissions', 1);
         $this->assertDatabaseHas('submissions', ['id' => $id, 'display_number' => '00', 'display_name' => 'ALEX', 'size' => 'XL']);
         $this->assertSame(['2'], Submission::find($id)->designs);
+        $this->assertNotNull(Submission::find($id)->paid_at);
+    }
+
+    public function test_marking_paid_records_the_server_time_and_total_is_exported(): void {
+        $this->travelTo(now()->startOfSecond());
+        $payload = $this->payload(['designs' => ['1', '2']]);
+        $id = $this->postJson('/submissions/save', $payload)->assertCreated()->json('id');
+        $this->assertTrue(now()->equalTo(Submission::find($id)->paid_at));
+        $csv = $this->get('/admin/export')->assertOk()->streamedContent();
+        $this->assertStringContainsString('Amount', $csv);
+        $this->assertStringContainsString(',700,', $csv);
     }
     public function test_users_can_only_edit_their_own_browser_entry(): void {
         $first = $this->payload();

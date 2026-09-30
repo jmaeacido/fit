@@ -39,6 +39,7 @@ class ShirtController extends Controller
     }
     public function save(Request $request) {
         $data = $this->selectionData($request);
+        $data['paid_at'] = now();
         // The unguessable browser key grants access to this entry only; never expose it in listings.
         $submission = Submission::updateOrCreate(['request_key' => $data['request_key']], $data);
         return response()->json(['id' => $submission->id], $submission->wasRecentlyCreated ? 201 : 200);
@@ -82,6 +83,7 @@ class ShirtController extends Controller
             'sizes' => (clone $query)->selectRaw('size, COUNT(*) as total')->groupBy('size')->pluck('total', 'size'),
             'designs' => $designs,
             'authenticated' => Auth::check(),
+            'paid' => (clone $query)->whereNotNull('paid_at')->count(),
         ]);
     }
     public function export(Request $request) {
@@ -89,11 +91,11 @@ class ShirtController extends Controller
         return response()->streamDownload(function () use ($query) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['ID', 'Full name', 'Display name', 'Display number', 'Size', 'Designs', 'Submitted at (UTC)'], ',', '"', '');
+            fputcsv($out, ['ID', 'Full name', 'Display name', 'Display number', 'Size', 'Designs', 'Amount', 'Marked paid at (UTC)', 'Submitted at (UTC)'], ',', '"', '');
             foreach ($query->orderBy('id')->cursor() as $row) {
                 $name = preg_match('/^[\s]*[=+@\-]/u', $row->name) ? "'".$row->name : $row->name;
                 $displayName = preg_match('/^[\s]*[=+@\-]/u', $row->display_name ?? '') ? "'".$row->display_name : $row->display_name;
-                fputcsv($out, [$row->id, $name, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), $row->created_at->toDateTimeString()], ',', '"', '');
+                fputcsv($out, [$row->id, $name, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), count($row->designs) * 350, $row->paid_at?->toDateTimeString(), $row->created_at->toDateTimeString()], ',', '"', '');
             }
             fclose($out);
         }, 'shirt-submissions-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
