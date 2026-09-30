@@ -120,13 +120,24 @@ class ShirtTest extends TestCase
         $this->postJson('/login', ['login' => 'testadmin', 'password' => 'incorrect'])->assertUnprocessable()->assertJsonValidationErrors('login');
         $this->assertGuest();
     }
+    public function test_admin_can_delete_a_record(): void {
+        $record = Submission::create($this->payload());
+        $other = Submission::create($this->payload(['name' => 'Keep Me']));
+        $this->deleteJson('/admin/submissions/'.$record->id)->assertUnauthorized();
+        $this->assertDatabaseHas('submissions', ['id' => $record->id]);
+        $this->actingAs(User::factory()->create());
+        $this->deleteJson('/admin/submissions/'.$record->id)->assertOk()->assertJson(['ok' => true]);
+        $this->assertDatabaseMissing('submissions', ['id' => $record->id]);
+        $this->assertDatabaseHas('submissions', ['id' => $other->id]);
+        $this->deleteJson('/admin/submissions/99999')->assertNotFound();
+    }
     public function test_filters_totals_and_csv(): void {
         Submission::create($this->payload());
         Submission::create($this->payload(['name' => '=SUM(1,2)', 'display_name' => '=2+2', 'size' => 'L', 'designs' => ['2']]));
-        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('sizes.M', 1)->assertJsonPath('designs.2', 2);
-        $this->getJson('/admin/submissions?size=M&design=1')->assertOk()->assertJsonPath('total', 1);
-        $this->getJson('/admin/submissions?design=1')->assertJsonPath('total', 1);
-        $this->getJson('/admin/submissions?size=XS')->assertJsonPath('total', 0);
+        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('shirts', 3)->assertJsonPath('sizes.M', 1)->assertJsonPath('designs.2', 2);
+        $this->getJson('/admin/submissions?size=M&design=1')->assertOk()->assertJsonPath('total', 1)->assertJsonPath('shirts', 2);
+        $this->getJson('/admin/submissions?design=1')->assertJsonPath('total', 1)->assertJsonPath('shirts', 2);
+        $this->getJson('/admin/submissions?size=XS')->assertJsonPath('total', 0)->assertJsonPath('shirts', 0);
         $this->getJson('/admin/submissions?size=invalid')->assertUnprocessable();
         $csv = $this->get('/admin/export?size=L')->assertOk()->streamedContent();
         $this->assertStringContainsString("'=SUM(1,2)", $csv);

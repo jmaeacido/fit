@@ -47,6 +47,10 @@ class ShirtController extends Controller
         $submission->update($this->selectionData($request, false));
         return response()->json(['id' => $submission->id]);
     }
+    public function destroy(Submission $submission) {
+        $submission->delete();
+        return response()->json(['ok' => true]);
+    }
     public function login(Request $request) {
         $request->merge(['login' => $request->input('login', $request->input('email'))]);
         $data = $request->validate(['login' => ['required', 'string', 'max:255'], 'password' => ['required', 'string']]);
@@ -70,11 +74,13 @@ class ShirtController extends Controller
     }
     public function index(Request $request) {
         $query = $this->filtered($request);
+        $designs = collect(['1', '2'])->mapWithKeys(fn ($id) => [$id => (clone $query)->whereJsonContains('designs', $id)->count()]);
         return response()->json([
             'submissions' => (clone $query)->latest('id')->paginate(20),
             'total' => (clone $query)->count(),
+            'shirts' => $designs->sum(),
             'sizes' => (clone $query)->selectRaw('size, COUNT(*) as total')->groupBy('size')->pluck('total', 'size'),
-            'designs' => collect(['1', '2'])->mapWithKeys(fn ($id) => [$id => (clone $query)->whereJsonContains('designs', $id)->count()]),
+            'designs' => $designs,
             'authenticated' => Auth::check(),
         ]);
     }
