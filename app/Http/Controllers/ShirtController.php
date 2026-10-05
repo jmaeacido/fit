@@ -14,6 +14,7 @@ class ShirtController extends Controller
     {
         return view('app', ['settings' => array_merge(config('shirts'), [
             'authenticated' => Auth::check(),
+            'timezone' => config('app.timezone'),
         ])]);
     }
 
@@ -163,13 +164,13 @@ class ShirtController extends Controller
         return response()->streamDownload(function () use ($query) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['ID', 'Full name', 'Design 1 display name', 'Design 1 display number', 'Design 2 display name', 'Design 2 display number', 'Size', 'Designs', 'Amount', 'Paid amount', 'Unpaid amount', 'Payment status', 'Marked paid at (UTC)', 'Submitted at (UTC)'], ',', '"', '');
+            fputcsv($out, ['ID', 'Full name', 'Design 1 display name', 'Design 1 display number', 'Design 2 display name', 'Design 2 display number', 'Size', 'Designs', 'Amount', 'Paid amount', 'Unpaid amount', 'Payment status', 'Marked paid at (GMT+8)', 'Submitted at (GMT+8)'], ',', '"', '');
             foreach ($query->orderBy('id')->cursor() as $row) {
                 $name = preg_match('/^[\s]*[=+@\-]/u', $row->name) ? "'".$row->name : $row->name;
                 $displayName = preg_match('/^[\s]*[=+@\-]/u', $row->display_name ?? '') ? "'".$row->display_name : $row->display_name;
                 $design1DisplayName = preg_match('/^[\s]*[=+@\-]/u', $row->design_1_display_name ?? '') ? "'".$row->design_1_display_name : $row->design_1_display_name;
                 $amount = count($row->designs) * 350;
-                fputcsv($out, [$row->id, $name, $design1DisplayName, $row->design_1_display_number, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), $amount, $row->paid_at ? $amount : 0, $row->paid_at ? 0 : $amount, $row->paid_at ? 'Paid' : 'Unpaid', $row->paid_at?->toDateTimeString(), $row->created_at->toDateTimeString()], ',', '"', '');
+                fputcsv($out, [$row->id, $name, $design1DisplayName, $row->design_1_display_number, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), $amount, $row->paid_at ? $amount : 0, $row->paid_at ? 0 : $amount, $row->paid_at ? 'Paid' : 'Unpaid', $row->paid_at?->setTimezone(config('app.timezone'))->toDateTimeString(), $row->created_at->setTimezone(config('app.timezone'))->toDateTimeString()], ',', '"', '');
             }
             fclose($out);
         }, 'shirt-submissions-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);

@@ -22,6 +22,15 @@ class ShirtTest extends TestCase
         $this->withoutVite()->get('/')->assertOk();
     }
 
+    public function test_site_uses_manila_timezone(): void
+    {
+        $this->assertSame('Asia/Manila', config('app.timezone'));
+        $this->withoutVite()->get('/')->assertOk()->assertViewHas(
+            'settings',
+            fn (array $settings) => $settings['timezone'] === 'Asia/Manila'
+        );
+    }
+
     public function test_required_and_allowed_values(): void
     {
         $this->postJson('/submissions', [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs', 'request_key']);
@@ -100,6 +109,9 @@ class ShirtTest extends TestCase
         $this->assertStringContainsString('Paid amount', $csv);
         $this->assertStringContainsString('Unpaid amount', $csv);
         $this->assertStringContainsString('Payment status', $csv);
+        $this->assertStringContainsString('Marked paid at (GMT+8)', $csv);
+        $this->assertStringContainsString('Submitted at (GMT+8)', $csv);
+        $this->assertStringNotContainsString('(UTC)', $csv);
         $this->assertStringContainsString(',700,700,0,Paid,', $csv);
     }
 

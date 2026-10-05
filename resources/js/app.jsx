@@ -19,6 +19,7 @@ const {
     sizes,
     designs,
     authenticated: initiallyAuthenticated = false,
+    timezone = "Asia/Manila",
 } = window.shirtSettings;
 async function api(url, body, method) {
     const verb =
@@ -1254,7 +1255,9 @@ function Admin() {
                                             <td>
                                                 {new Date(
                                                     row.created_at,
-                                                ).toLocaleString()}
+                                                ).toLocaleString("en-PH", {
+                                                    timeZone: timezone,
+                                                })}
                                             </td>
                                             {isAdmin && (
                                                 <td className="row-actions">
