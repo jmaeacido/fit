@@ -37,3 +37,6 @@ dialog{width:min(700px,94vw);max-width:94vw}
 .submit-buttons{display:flex;align-items:center;gap:10px;white-space:nowrap}
 @media(max-width:760px){.submit-buttons{margin-top:12px}.submit-buttons .secondary,.submit-buttons .primary{flex:1;width:auto}}
 .personalization-group{border:1px solid #e2e7da;background:#f8faf5;border-radius:8px;padding:17px;margin:18px 0}.personalization-title{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#647556;margin-bottom:16px}.personalization-group .display-field:last-child{margin-bottom:0}.personalization-cell span{display:block;white-space:nowrap;line-height:1.7}.personalization-cell strong{font-size:10px;color:#71805f;margin-right:4px}
+.stats{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:1000px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}

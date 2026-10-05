@@ -61,9 +61,16 @@ class ShirtTest extends TestCase
         $payload = $this->payload(['designs' => ['1', '2']]);
         $id = $this->postJson('/submissions/save', $payload)->assertCreated()->json('id');
         $this->assertTrue(now()->equalTo(Submission::find($id)->paid_at));
+        $this->getJson('/admin/submissions')
+            ->assertOk()
+            ->assertJsonPath('paid_amount', 700)
+            ->assertJsonPath('unpaid_amount', 0);
         $csv = $this->get('/admin/export')->assertOk()->streamedContent();
         $this->assertStringContainsString('Amount', $csv);
-        $this->assertStringContainsString(',700,', $csv);
+        $this->assertStringContainsString('Paid amount', $csv);
+        $this->assertStringContainsString('Unpaid amount', $csv);
+        $this->assertStringContainsString('Payment status', $csv);
+        $this->assertStringContainsString(',700,700,0,Paid,', $csv);
     }
     public function test_browser_entry_can_be_submitted_without_marking_it_paid(): void {
         $payload = $this->payload(['paid' => false]);
@@ -75,6 +82,15 @@ class ShirtTest extends TestCase
         $this->assertNotNull(Submission::find($id)->paid_at);
         $this->postJson('/submissions/save', $payload)->assertOk();
         $this->assertNotNull(Submission::find($id)->paid_at);
+    }
+
+    public function test_csv_exports_unpaid_payment_status(): void {
+        Submission::create($this->payload());
+
+        $csv = $this->get('/admin/export')->assertOk()->streamedContent();
+
+        $this->assertStringContainsString('Payment status', $csv);
+        $this->assertStringContainsString(',700,0,700,Unpaid,,', $csv);
     }
     public function test_users_can_only_edit_their_own_browser_entry(): void {
         $first = $this->payload();
@@ -178,7 +194,7 @@ class ShirtTest extends TestCase
     public function test_filters_totals_and_csv(): void {
         Submission::create($this->payload());
         Submission::create($this->payload(['name' => '=SUM(1,2)', 'display_name' => '=2+2', 'size' => 'L', 'designs' => ['2']]));
-        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('shirts', 3)->assertJsonPath('sizes.M', 1)->assertJsonPath('designs.2', 2);
+        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('shirts', 3)->assertJsonPath('sizes.M', 1)->assertJsonPath('designs.2', 2)->assertJsonPath('paid_amount', 0)->assertJsonPath('unpaid_amount', 1050);
         $this->getJson('/admin/submissions?size=M&design=1')->assertOk()->assertJsonPath('total', 1)->assertJsonPath('shirts', 2);
         $this->getJson('/admin/submissions?design=1')->assertJsonPath('total', 1)->assertJsonPath('shirts', 2);
         $this->getJson('/admin/submissions?size=XS')->assertJsonPath('total', 0)->assertJsonPath('shirts', 0);

@@ -92,6 +92,9 @@ class ShirtController extends Controller
     public function index(Request $request) {
         $query = $this->filtered($request);
         $designs = collect(['1', '2'])->mapWithKeys(fn ($id) => [$id => (clone $query)->whereJsonContains('designs', $id)->count()]);
+        $paidShirts = collect(['1', '2'])->sum(fn ($id) => (clone $query)->whereNotNull('paid_at')->whereJsonContains('designs', $id)->count());
+        $paidAmount = $paidShirts * 350;
+        $totalAmount = $designs->sum() * 350;
         return response()->json([
             'submissions' => (clone $query)->latest('id')->paginate(20),
             'total' => (clone $query)->count(),
@@ -100,6 +103,8 @@ class ShirtController extends Controller
             'designs' => $designs,
             'authenticated' => Auth::check(),
             'paid' => (clone $query)->whereNotNull('paid_at')->count(),
+            'paid_amount' => $paidAmount,
+            'unpaid_amount' => $totalAmount - $paidAmount,
         ]);
     }
     public function export(Request $request) {
@@ -107,12 +112,13 @@ class ShirtController extends Controller
         return response()->streamDownload(function () use ($query) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['ID', 'Full name', 'Design 1 display name', 'Design 1 display number', 'Design 2 display name', 'Design 2 display number', 'Size', 'Designs', 'Amount', 'Marked paid at (UTC)', 'Submitted at (UTC)'], ',', '"', '');
+            fputcsv($out, ['ID', 'Full name', 'Design 1 display name', 'Design 1 display number', 'Design 2 display name', 'Design 2 display number', 'Size', 'Designs', 'Amount', 'Paid amount', 'Unpaid amount', 'Payment status', 'Marked paid at (UTC)', 'Submitted at (UTC)'], ',', '"', '');
             foreach ($query->orderBy('id')->cursor() as $row) {
                 $name = preg_match('/^[\s]*[=+@\-]/u', $row->name) ? "'".$row->name : $row->name;
                 $displayName = preg_match('/^[\s]*[=+@\-]/u', $row->display_name ?? '') ? "'".$row->display_name : $row->display_name;
                 $design1DisplayName = preg_match('/^[\s]*[=+@\-]/u', $row->design_1_display_name ?? '') ? "'".$row->design_1_display_name : $row->design_1_display_name;
-                fputcsv($out, [$row->id, $name, $design1DisplayName, $row->design_1_display_number, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), count($row->designs) * 350, $row->paid_at?->toDateTimeString(), $row->created_at->toDateTimeString()], ',', '"', '');
+                $amount = count($row->designs) * 350;
+                fputcsv($out, [$row->id, $name, $design1DisplayName, $row->design_1_display_number, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), $amount, $row->paid_at ? $amount : 0, $row->paid_at ? 0 : $amount, $row->paid_at ? 'Paid' : 'Unpaid', $row->paid_at?->toDateTimeString(), $row->created_at->toDateTimeString()], ',', '"', '');
             }
             fclose($out);
         }, 'shirt-submissions-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
