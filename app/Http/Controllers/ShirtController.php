@@ -39,14 +39,24 @@ class ShirtController extends Controller
     }
     public function save(Request $request) {
         $data = $this->selectionData($request);
-        $data['paid_at'] = now();
+        if ($request->boolean('paid', true)) {
+            $data['paid_at'] = now();
+        }
         // The unguessable browser key grants access to this entry only; never expose it in listings.
         $submission = Submission::updateOrCreate(['request_key' => $data['request_key']], $data);
-        return response()->json(['id' => $submission->id], $submission->wasRecentlyCreated ? 201 : 200);
+        return response()->json(['id' => $submission->id, 'paid_at' => $submission->paid_at?->toISOString()], $submission->wasRecentlyCreated ? 201 : 200);
     }
     public function update(Request $request, Submission $submission) {
         $submission->update($this->selectionData($request, false));
         return response()->json(['id' => $submission->id]);
+    }
+    public function updatePaid(Request $request, Submission $submission) {
+        $data = $request->validate(['paid' => ['required', 'boolean']]);
+        $submission->update(['paid_at' => $data['paid'] ? now() : null]);
+        return response()->json([
+            'id' => $submission->id,
+            'paid_at' => $submission->paid_at?->toISOString(),
+        ]);
     }
     public function destroy(Submission $submission) {
         $submission->delete();

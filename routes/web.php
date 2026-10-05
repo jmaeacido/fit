@@ -13,6 +13,7 @@ Route::post('/submissions/save', [ShirtController::class, 'save'])->middleware('
 Route::post('/submissions', [ShirtController::class, 'store'])->middleware('throttle:20,1');
 Route::middleware('auth')->group(function () {
     Route::post('/admin/submissions/{submission}', [ShirtController::class, 'update']);
+    Route::patch('/admin/submissions/{submission}/paid', [ShirtController::class, 'updatePaid']);
     Route::delete('/admin/submissions/{submission}', [ShirtController::class, 'destroy']);
     Route::post('/logout', [ShirtController::class, 'logout']);
 });

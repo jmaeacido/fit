@@ -59,6 +59,17 @@ class ShirtTest extends TestCase
         $this->assertStringContainsString('Amount', $csv);
         $this->assertStringContainsString(',700,', $csv);
     }
+    public function test_browser_entry_can_be_submitted_without_marking_it_paid(): void {
+        $payload = $this->payload(['paid' => false]);
+        $id = $this->postJson('/submissions/save', $payload)->assertCreated()->json('id');
+        $this->assertNull(Submission::find($id)->paid_at);
+        $this->postJson('/submissions/save', array_replace($payload, ['name' => 'Updated unpaid']))->assertOk();
+        $this->assertNull(Submission::find($id)->paid_at);
+        $this->postJson('/submissions/save', array_replace($payload, ['paid' => true]))->assertOk();
+        $this->assertNotNull(Submission::find($id)->paid_at);
+        $this->postJson('/submissions/save', $payload)->assertOk();
+        $this->assertNotNull(Submission::find($id)->paid_at);
+    }
     public function test_users_can_only_edit_their_own_browser_entry(): void {
         $first = $this->payload();
         $id = $this->postJson('/submissions/save', $first)->assertCreated()->json('id');
@@ -141,6 +152,22 @@ class ShirtTest extends TestCase
         $this->assertDatabaseMissing('submissions', ['id' => $record->id]);
         $this->assertDatabaseHas('submissions', ['id' => $other->id]);
         $this->deleteJson('/admin/submissions/99999')->assertNotFound();
+    }
+    public function test_admin_can_mark_a_record_paid_and_unpaid(): void {
+        $record = Submission::create($this->payload());
+        $this->patchJson('/admin/submissions/'.$record->id.'/paid', ['paid' => true])->assertUnauthorized();
+        $this->assertNull($record->fresh()->paid_at);
+        $this->actingAs(User::factory()->create());
+        $this->travelTo(now()->startOfSecond());
+        $this->patchJson('/admin/submissions/'.$record->id.'/paid', ['paid' => true])
+            ->assertOk()->assertJsonPath('id', $record->id);
+        $this->assertTrue(now()->equalTo($record->fresh()->paid_at));
+        $this->getJson('/admin/submissions')->assertJsonPath('paid', 1);
+        $this->patchJson('/admin/submissions/'.$record->id.'/paid', ['paid' => false])
+            ->assertOk()->assertJsonPath('paid_at', null);
+        $this->assertNull($record->fresh()->paid_at);
+        $this->patchJson('/admin/submissions/'.$record->id.'/paid', ['paid' => 'yes'])->assertUnprocessable();
+        $this->patchJson('/admin/submissions/99999/paid', ['paid' => true])->assertNotFound();
     }
     public function test_filters_totals_and_csv(): void {
         Submission::create($this->payload());
