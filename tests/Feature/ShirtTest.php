@@ -8,12 +8,18 @@ use Tests\TestCase;
 class ShirtTest extends TestCase
 {
     use RefreshDatabase;
-    private function payload(array $overrides = []): array { return array_replace(['name' => 'Alex Morgan', 'display_name' => 'MORGAN', 'display_number' => '07', 'size' => 'M', 'designs' => ['1', '2'], 'request_key' => (string) Str::uuid()], $overrides); }
+    private function payload(array $overrides = []): array { return array_replace(['name' => 'Alex Morgan', 'display_name' => 'MORGAN', 'display_number' => '07', 'design_1_display_name' => 'ALEX', 'design_1_display_number' => '10', 'size' => 'M', 'designs' => ['1', '2'], 'request_key' => (string) Str::uuid()], $overrides); }
     public function test_public_form_loads(): void { $this->withoutVite()->get('/')->assertOk(); }
     public function test_required_and_allowed_values(): void {
         $this->postJson('/submissions', [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs', 'request_key']);
         foreach ([['display_name' => '  '], ['display_name' => str_repeat('a', 151)], ['display_number' => '7'], ['display_number' => '007'], ['display_number' => 'ab'], ['display_number' => '-1'], ['display_number' => 7], ['name' => '  '], ['size' => '4XL'], ['designs' => []], ['designs' => ['1']], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) $this->postJson('/submissions', $this->payload($invalid))->assertUnprocessable();
         $this->assertDatabaseCount('submissions', 0);
+    }
+    public function test_each_selected_design_can_have_different_personalization(): void {
+        $this->postJson('/submissions', $this->payload())->assertCreated();
+        $this->assertDatabaseHas('submissions', ['display_name' => 'MORGAN', 'display_number' => '07', 'design_1_display_name' => 'ALEX', 'design_1_display_number' => '10']);
+        $this->postJson('/submissions', $this->payload(['design_1_display_name' => null]))->assertUnprocessable()->assertJsonValidationErrors('design_1_display_name');
+        $this->postJson('/submissions', $this->payload(['design_1_display_number' => '7']))->assertUnprocessable()->assertJsonValidationErrors('design_1_display_number');
     }
     public function test_submissions_and_retries_are_idempotent(): void {
         $payload = $this->payload();

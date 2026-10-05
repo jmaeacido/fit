@@ -15,7 +15,7 @@ class ShirtController extends Controller
     public function store(Request $request) {
         $data = $this->selectionData($request);
         $submission = Submission::firstOrCreate(['request_key' => $data['request_key']], $data);
-        if ($submission->name !== $data['name'] || $submission->display_name !== $data['display_name'] || $submission->display_number !== $data['display_number'] || $submission->size !== $data['size'] || $submission->designs !== $data['designs']) {
+        if ($submission->name !== $data['name'] || $submission->display_name !== $data['display_name'] || $submission->display_number !== $data['display_number'] || $submission->design_1_display_name !== ($data['design_1_display_name'] ?? null) || $submission->design_1_display_number !== ($data['design_1_display_number'] ?? null) || $submission->size !== $data['size'] || $submission->designs !== $data['designs']) {
             return response()->json(['message' => 'This request was already submitted. Refresh to start a new selection.'], 409);
         }
         return response()->json(['id' => $submission->id], $submission->wasRecentlyCreated ? 201 : 200);
@@ -25,6 +25,8 @@ class ShirtController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'display_name' => ['required', 'string', 'max:150'],
             'display_number' => ['required', 'string', 'regex:/^[0-9]{2}$/D'],
+            'design_1_display_name' => ['nullable', 'string', 'max:150', Rule::requiredIf(fn () => in_array('1', (array) $request->input('designs', []), true))],
+            'design_1_display_number' => ['nullable', 'string', 'regex:/^[0-9]{2}$/D', Rule::requiredIf(fn () => in_array('1', (array) $request->input('designs', []), true))],
             'size' => ['required', Rule::in(config('shirts.sizes'))],
             'designs' => ['required', 'array', 'min:1', 'max:2', function ($attribute, $value, $fail) {
                 if (!is_array($value) || !in_array('2', $value, true)) {
@@ -35,6 +37,10 @@ class ShirtController extends Controller
             ...($requireKey ? ['request_key' => ['required', 'uuid']] : []),
         ]);
         sort($data['designs']);
+        if (!in_array('1', $data['designs'], true)) {
+            $data['design_1_display_name'] = null;
+            $data['design_1_display_number'] = null;
+        }
         return $data;
     }
     public function save(Request $request) {
@@ -101,11 +107,12 @@ class ShirtController extends Controller
         return response()->streamDownload(function () use ($query) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['ID', 'Full name', 'Display name', 'Display number', 'Size', 'Designs', 'Amount', 'Marked paid at (UTC)', 'Submitted at (UTC)'], ',', '"', '');
+            fputcsv($out, ['ID', 'Full name', 'Design 1 display name', 'Design 1 display number', 'Design 2 display name', 'Design 2 display number', 'Size', 'Designs', 'Amount', 'Marked paid at (UTC)', 'Submitted at (UTC)'], ',', '"', '');
             foreach ($query->orderBy('id')->cursor() as $row) {
                 $name = preg_match('/^[\s]*[=+@\-]/u', $row->name) ? "'".$row->name : $row->name;
                 $displayName = preg_match('/^[\s]*[=+@\-]/u', $row->display_name ?? '') ? "'".$row->display_name : $row->display_name;
-                fputcsv($out, [$row->id, $name, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), count($row->designs) * 350, $row->paid_at?->toDateTimeString(), $row->created_at->toDateTimeString()], ',', '"', '');
+                $design1DisplayName = preg_match('/^[\s]*[=+@\-]/u', $row->design_1_display_name ?? '') ? "'".$row->design_1_display_name : $row->design_1_display_name;
+                fputcsv($out, [$row->id, $name, $design1DisplayName, $row->design_1_display_number, $displayName, $row->display_number, $row->size, implode('; ', array_map(fn ($id) => 'Design '.$id, $row->designs)), count($row->designs) * 350, $row->paid_at?->toDateTimeString(), $row->created_at->toDateTimeString()], ',', '"', '');
             }
             fclose($out);
         }, 'shirt-submissions-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
