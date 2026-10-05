@@ -1,49 +1,78 @@
 <?php
+
 namespace Tests\Feature;
+
 use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
+
 class ShirtTest extends TestCase
 {
     use RefreshDatabase;
-    private function payload(array $overrides = []): array { return array_replace(['name' => 'Alex Morgan', 'display_name' => 'MORGAN', 'display_number' => '07', 'design_1_display_name' => 'ALEX', 'design_1_display_number' => '10', 'size' => 'M', 'designs' => ['1', '2'], 'request_key' => (string) Str::uuid()], $overrides); }
-    public function test_public_form_loads(): void { $this->withoutVite()->get('/')->assertOk(); }
-    public function test_required_and_allowed_values(): void {
+
+    private function payload(array $overrides = []): array
+    {
+        return array_replace(['name' => 'Alex Morgan', 'display_name' => 'MORGAN', 'display_number' => '07', 'design_1_display_name' => 'ALEX', 'design_1_display_number' => '10', 'size' => 'M', 'designs' => ['1', '2'], 'request_key' => (string) Str::uuid()], $overrides);
+    }
+
+    public function test_public_form_loads(): void
+    {
+        $this->withoutVite()->get('/')->assertOk();
+    }
+
+    public function test_required_and_allowed_values(): void
+    {
         $this->postJson('/submissions', [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs', 'request_key']);
-        foreach ([['display_name' => '  '], ['display_name' => str_repeat('a', 151)], ['display_number' => '7'], ['display_number' => '007'], ['display_number' => 'ab'], ['display_number' => '-1'], ['display_number' => 7], ['name' => '  '], ['size' => '4XL'], ['designs' => []], ['designs' => ['1']], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) $this->postJson('/submissions', $this->payload($invalid))->assertUnprocessable();
+        foreach ([['display_name' => '  '], ['display_name' => str_repeat('a', 151)], ['display_number' => '7'], ['display_number' => '007'], ['display_number' => 'ab'], ['display_number' => '-1'], ['display_number' => 7], ['name' => '  '], ['size' => '4XL'], ['designs' => []], ['designs' => ['1']], ['designs' => ['3']], ['designs' => ['1', '1']]] as $invalid) {
+            $this->postJson('/submissions', $this->payload($invalid))->assertUnprocessable();
+        }
         $this->assertDatabaseCount('submissions', 0);
     }
-    public function test_each_selected_design_can_have_different_personalization(): void {
+
+    public function test_each_selected_design_can_have_different_personalization(): void
+    {
         $this->postJson('/submissions', $this->payload())->assertCreated();
         $this->assertDatabaseHas('submissions', ['display_name' => 'MORGAN', 'display_number' => '07', 'design_1_display_name' => 'ALEX', 'design_1_display_number' => '10']);
         $this->postJson('/submissions', $this->payload(['design_1_display_name' => null]))->assertUnprocessable()->assertJsonValidationErrors('design_1_display_name');
         $this->postJson('/submissions', $this->payload(['design_1_display_number' => '7']))->assertUnprocessable()->assertJsonValidationErrors('design_1_display_number');
     }
-    public function test_submissions_and_retries_are_idempotent(): void {
+
+    public function test_submissions_and_retries_are_idempotent(): void
+    {
         $payload = $this->payload();
         $id = $this->postJson('/submissions', $payload)->assertCreated()->json('id');
         $this->postJson('/submissions', $payload)->assertOk()->assertJson(['id' => $id]);
         $this->postJson('/submissions', array_replace($payload, ['size' => 'L']))->assertConflict();
-        foreach (['display_name' => 'ALEX', 'display_number' => '08'] as $field => $value) $this->postJson('/submissions', array_replace($payload, [$field => $value]))->assertConflict();
+        foreach (['display_name' => 'ALEX', 'display_number' => '08'] as $field => $value) {
+            $this->postJson('/submissions', array_replace($payload, [$field => $value]))->assertConflict();
+        }
         $this->assertSame('07', Submission::first()->display_number);
         $this->assertSame('MORGAN', Submission::first()->display_name);
         $this->assertDatabaseCount('submissions', 1);
         $this->assertSame(['1', '2'], Submission::first()->designs);
         $this->assertNotNull(Submission::first()->created_at);
     }
-    public function test_all_sizes_and_required_design_two_are_accepted(): void {
-        foreach (config('shirts.sizes') as $size) $this->postJson('/submissions', $this->payload(['size' => $size, 'designs' => ['2']]))->assertCreated();
+
+    public function test_all_sizes_and_required_design_two_are_accepted(): void
+    {
+        foreach (config('shirts.sizes') as $size) {
+            $this->postJson('/submissions', $this->payload(['size' => $size, 'designs' => ['2']]))->assertCreated();
+        }
         $this->assertDatabaseCount('submissions', 7);
     }
-    public function test_design_two_is_required(): void {
+
+    public function test_design_two_is_required(): void
+    {
         $this->postJson('/submissions', $this->payload(['designs' => ['1']]))->assertUnprocessable()->assertJsonValidationErrors('designs');
         $this->postJson('/submissions', $this->payload(['designs' => ['2']]))->assertCreated();
         $this->postJson('/submissions', $this->payload(['designs' => ['1', '2']]))->assertCreated();
         $this->assertDatabaseCount('submissions', 2);
     }
-    public function test_browser_entry_can_be_created_and_edited_without_login(): void {
+
+    public function test_browser_entry_can_be_created_and_edited_without_login(): void
+    {
         $payload = $this->payload();
         $id = $this->postJson('/submissions/save', $payload)->assertCreated()->json('id');
         $changed = array_replace($payload, ['name' => 'Alex Updated', 'display_name' => 'ALEX', 'display_number' => '00', 'size' => 'XL', 'designs' => ['2']]);
@@ -56,7 +85,8 @@ class ShirtTest extends TestCase
         $this->assertNotNull(Submission::find($id)->paid_at);
     }
 
-    public function test_marking_paid_records_the_server_time_and_total_is_exported(): void {
+    public function test_marking_paid_records_the_server_time_and_total_is_exported(): void
+    {
         $this->travelTo(now()->startOfSecond());
         $payload = $this->payload(['designs' => ['1', '2']]);
         $id = $this->postJson('/submissions/save', $payload)->assertCreated()->json('id');
@@ -72,7 +102,9 @@ class ShirtTest extends TestCase
         $this->assertStringContainsString('Payment status', $csv);
         $this->assertStringContainsString(',700,700,0,Paid,', $csv);
     }
-    public function test_browser_entry_can_be_submitted_without_marking_it_paid(): void {
+
+    public function test_browser_entry_can_be_submitted_without_marking_it_paid(): void
+    {
         $payload = $this->payload(['paid' => false]);
         $id = $this->postJson('/submissions/save', $payload)->assertCreated()->json('id');
         $this->assertNull(Submission::find($id)->paid_at);
@@ -84,7 +116,8 @@ class ShirtTest extends TestCase
         $this->assertNotNull(Submission::find($id)->paid_at);
     }
 
-    public function test_csv_exports_unpaid_payment_status(): void {
+    public function test_csv_exports_unpaid_payment_status(): void
+    {
         Submission::create($this->payload());
 
         $csv = $this->get('/admin/export')->assertOk()->streamedContent();
@@ -92,7 +125,9 @@ class ShirtTest extends TestCase
         $this->assertStringContainsString('Payment status', $csv);
         $this->assertStringContainsString(',700,0,700,Unpaid,,', $csv);
     }
-    public function test_users_can_only_edit_their_own_browser_entry(): void {
+
+    public function test_users_can_only_edit_their_own_browser_entry(): void
+    {
         $first = $this->payload();
         $id = $this->postJson('/submissions/save', $first)->assertCreated()->json('id');
         $this->postJson('/submissions/save', $this->payload(['name' => 'Another person', 'id' => $id]))->assertCreated();
@@ -104,7 +139,9 @@ class ShirtTest extends TestCase
         $this->assertStringNotContainsString($first['request_key'], $response->getContent());
         $this->assertStringNotContainsString('request_key', $response->getContent());
     }
-    public function test_dashboard_is_public_but_editing_requires_admin(): void {
+
+    public function test_dashboard_is_public_but_editing_requires_admin(): void
+    {
         $this->withoutVite()->get('/admin')->assertOk();
         $this->withoutVite()->get('/login')->assertOk();
         $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('authenticated', false);
@@ -117,7 +154,9 @@ class ShirtTest extends TestCase
         $this->assertSame('Admin Edit', $record->fresh()->name);
         $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('authenticated', true);
     }
-    public function test_admin_can_edit_a_record_without_changing_its_identity(): void {
+
+    public function test_admin_can_edit_a_record_without_changing_its_identity(): void
+    {
         $record = Submission::create($this->payload());
         $other = Submission::create($this->payload());
         $createdAt = $record->created_at;
@@ -126,7 +165,9 @@ class ShirtTest extends TestCase
         $changed = ['name' => 'Updated Person', 'display_name' => 'UPDATED', 'display_number' => '00', 'size' => 'XL', 'designs' => ['2']];
         $this->postJson('/admin/submissions/'.$record->id, $changed + ['request_key' => (string) Str::uuid(), 'id' => $other->id, 'created_at' => '2000-01-01'])->assertOk()->assertExactJson(['id' => $record->id]);
         $record->refresh();
-        foreach ($changed as $field => $value) $this->assertSame($value, $record->$field);
+        foreach ($changed as $field => $value) {
+            $this->assertSame($value, $record->$field);
+        }
         $this->assertSame($key, $record->request_key);
         $this->assertTrue($createdAt->equalTo($record->created_at));
         $this->assertSame('Alex Morgan', $other->fresh()->name);
@@ -135,7 +176,9 @@ class ShirtTest extends TestCase
         $this->getJson('/admin/submissions?size=XL&design=2')->assertJsonPath('total', 1)->assertJsonPath('sizes.XL', 1)->assertJsonPath('designs.2', 1);
         $this->assertStringContainsString('Updated Person', $this->get('/admin/export?size=XL')->assertOk()->streamedContent());
     }
-    public function test_admin_edits_validate_fields_and_require_an_existing_record(): void {
+
+    public function test_admin_edits_validate_fields_and_require_an_existing_record(): void
+    {
         $record = Submission::create($this->payload());
         $this->actingAs(User::factory()->create());
         $this->postJson('/admin/submissions/'.$record->id, [])->assertUnprocessable()->assertJsonValidationErrors(['name', 'display_name', 'display_number', 'size', 'designs']);
@@ -146,7 +189,9 @@ class ShirtTest extends TestCase
         $this->postJson('/admin/submissions/99999', $this->payload())->assertNotFound();
         $this->assertDatabaseCount('submissions', 1);
     }
-    public function test_login_logout_and_invalid_password(): void {
+
+    public function test_login_logout_and_invalid_password(): void
+    {
         $user = User::factory()->create();
         $this->postJson('/login', ['email' => $user->email, 'password' => 'wrong'])->assertUnprocessable();
         $this->postJson('/login', ['email' => $user->email, 'password' => 'password'])->assertOk();
@@ -154,7 +199,9 @@ class ShirtTest extends TestCase
         $this->postJson('/logout')->assertOk();
         $this->assertGuest();
     }
-    public function test_unified_login_accepts_username_and_email(): void {
+
+    public function test_unified_login_accepts_username_and_email(): void
+    {
         $user = User::factory()->create(['username' => 'testadmin']);
         foreach ([$user->username, $user->email] as $login) {
             $this->postJson('/login', ['login' => $login, 'password' => 'password'])->assertOk();
@@ -164,7 +211,9 @@ class ShirtTest extends TestCase
         $this->postJson('/login', ['login' => 'testadmin', 'password' => 'incorrect'])->assertUnprocessable()->assertJsonValidationErrors('login');
         $this->assertGuest();
     }
-    public function test_admin_can_delete_a_record(): void {
+
+    public function test_admin_can_delete_a_record(): void
+    {
         $record = Submission::create($this->payload());
         $other = Submission::create($this->payload(['name' => 'Keep Me']));
         $this->deleteJson('/admin/submissions/'.$record->id)->assertUnauthorized();
@@ -175,7 +224,9 @@ class ShirtTest extends TestCase
         $this->assertDatabaseHas('submissions', ['id' => $other->id]);
         $this->deleteJson('/admin/submissions/99999')->assertNotFound();
     }
-    public function test_admin_can_mark_a_record_paid_and_unpaid(): void {
+
+    public function test_admin_can_mark_a_record_paid_and_unpaid(): void
+    {
         $record = Submission::create($this->payload());
         $this->patchJson('/admin/submissions/'.$record->id.'/paid', ['paid' => true])->assertUnauthorized();
         $this->assertNull($record->fresh()->paid_at);
@@ -191,12 +242,14 @@ class ShirtTest extends TestCase
         $this->patchJson('/admin/submissions/'.$record->id.'/paid', ['paid' => 'yes'])->assertUnprocessable();
         $this->patchJson('/admin/submissions/99999/paid', ['paid' => true])->assertNotFound();
     }
-    public function test_filters_totals_and_csv(): void {
+
+    public function test_filters_totals_and_csv(): void
+    {
         Submission::create($this->payload());
         Submission::create($this->payload(['name' => '=SUM(1,2)', 'display_name' => '=2+2', 'size' => 'L', 'designs' => ['2']]));
-        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('shirts', 3)->assertJsonPath('sizes.M', 1)->assertJsonPath('designs.2', 2)->assertJsonPath('paid_amount', 0)->assertJsonPath('unpaid_amount', 1050);
-        $this->getJson('/admin/submissions?size=M&design=1')->assertOk()->assertJsonPath('total', 1)->assertJsonPath('shirts', 2);
-        $this->getJson('/admin/submissions?design=1')->assertJsonPath('total', 1)->assertJsonPath('shirts', 2);
+        $this->getJson('/admin/submissions')->assertOk()->assertJsonPath('total', 2)->assertJsonPath('shirts', 3)->assertJsonPath('sizes.M', 2)->assertJsonPath('sizes.L', 1)->assertJsonPath('designs.2', 2)->assertJsonPath('paid_amount', 0)->assertJsonPath('unpaid_amount', 1050);
+        $this->getJson('/admin/submissions?size=M&design=1')->assertOk()->assertJsonPath('total', 1)->assertJsonPath('shirts', 2)->assertJsonPath('sizes.M', 2);
+        $this->getJson('/admin/submissions?design=1')->assertJsonPath('total', 1)->assertJsonPath('shirts', 2)->assertJsonPath('sizes.M', 2);
         $this->getJson('/admin/submissions?size=XS')->assertJsonPath('total', 0)->assertJsonPath('shirts', 0);
         $this->getJson('/admin/submissions?size=invalid')->assertUnprocessable();
         $csv = $this->get('/admin/export?size=L')->assertOk()->streamedContent();
@@ -206,8 +259,12 @@ class ShirtTest extends TestCase
         $this->assertStringContainsString(',07,', $csv);
         $this->assertStringContainsString('Design 2', $csv);
     }
-    public function test_admin_can_paginate(): void {
-        for ($i = 0; $i < 21; $i++) Submission::create($this->payload());
+
+    public function test_admin_can_paginate(): void
+    {
+        for ($i = 0; $i < 21; $i++) {
+            Submission::create($this->payload());
+        }
         $this->getJson('/admin/submissions?page=2')->assertOk()->assertJsonCount(1, 'submissions.data')->assertJsonPath('total', 21);
     }
 }
